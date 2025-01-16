@@ -2,49 +2,43 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	sm "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/bartlomiej-jedrol/aws-rds/amzn/rdspsql"
+	"github.com/bartlomiej-jedrol/aws-rds/cfg"
 )
 
 var (
-	ctx       context.Context
-	rdsClient *rds.Client
+	ctx           context.Context
+	rdsClient     *rds.Client
+	secretsClient *sm.Client
+	cfgPath       string = "cfg/instance_config.yaml"
 )
 
 func init() {
 	ctx = context.Background()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
-		log.Printf("failed to load sdk config")
+		log.Printf("failed to load sdk config: %v", err)
 		return
 	}
 
 	rdsClient = rds.NewFromConfig(cfg)
-}
-
-func prepareInput() rdspsql.Instance {
-	opts := rdspsql.NewOpts()
-	creds := rdspsql.NewCreds()
-	return rdspsql.Instance{
-		Opts:  opts,
-		Creds: creds,
-	}
+	secretsClient = sm.NewFromConfig(cfg)
 }
 
 func main() {
-	cfg, err := rdspsql.ParseConfig("cfg/instance_config.yaml")
+	in, err := cfg.NewInstanceInputFromCfg(ctx, secretsClient)
 	if err != nil {
-		fmt.Println(err)
+		return
 	}
 
-	fmt.Printf("instance cfg: %+v", cfg)
-	// ic := rdspsql.NewInstanceController(rdsClient)
-	// input := prepareInput()
-	// ic.CreateInstance(ctx, input)
+	ic := rdspsql.NewInstanceController(rdsClient)
+	ic.CreateDBInstance(ctx, in)
+
 	// ic.DescribeDBInstances(ctx)
 	// createDBInstance()
 	// deleteDBInstance()

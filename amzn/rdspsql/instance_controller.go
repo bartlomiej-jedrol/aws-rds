@@ -4,78 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
-	"gopkg.in/yaml.v3"
+	"github.com/bartlomiej-jedrol/aws-rds/cfg"
 )
 
 type InstanceController struct {
 	Client *rds.Client
-}
-
-type Opts struct {
-	AllocatedStorage            int32    `yaml:"allocated_storage"`
-	AutoMinorVersionUpgrade     bool     `yaml:"auto_minor_version_upgrade"`
-	BackupRetentionPeriod       int32    `yaml:"backup_retention_period"`
-	DBInstanceClass             string   `yaml:"db_instance_class"`
-	DBInstanceIdentifier        string   `yaml:"db_instance_identifier"`
-	DBName                      string   `yaml:"db_name"`
-	DBParameterGroup            string   `yaml:"db_parameter_group"`
-	DBSubnetGroupName           string   `yaml:"db_subnet_group_name"`
-	DeletionProtection          bool     `yaml:"deletion_protection"`
-	EnableCloudwatchLogsExports []string `yaml:"enable_cloudwatch_logs_exports"`
-	Engine                      string   `yaml:"engine"`
-	EngineVersion               string   `yaml:"engine_version"`
-	LicenseModel                string   `yaml:"license_model"`
-	PubliclyAccessible          bool     `yaml:"publicly_accessible"`
-	SkipFinalSnapshot           bool     `yaml:"skip_final_snapshot"`
-}
-
-type Creds struct {
-	MasterUserName     string `yaml:"master_user_name"`
-	MasterUserPassword string `yaml:"master_user_password"`
-}
-
-type InstanceConfig struct {
-	Instance Instance `yaml:"instance"`
-}
-
-type Instance struct {
-	Opts  `yaml:"opts"`
-	Creds `yaml:"creds"`
-}
-
-// NewOpts
-func NewOpts() Opts {
-	return Opts{
-		AllocatedStorage:            20,
-		AutoMinorVersionUpgrade:     false,
-		BackupRetentionPeriod:       7,
-		DBInstanceClass:             "db.t4g.micro",
-		DBInstanceIdentifier:        "db-instance-1",
-		DBName:                      "database2",
-		DBParameterGroup:            "pg-1",
-		DBSubnetGroupName:           "default-vpc-0a9656a8691710528",
-		DeletionProtection:          false,
-		EnableCloudwatchLogsExports: []string{"postgresql", "upgrade"},
-		Engine:                      "postgres",
-		EngineVersion:               "17.2",
-		LicenseModel:                "postgresql-license",
-		SkipFinalSnapshot:           true,
-		PubliclyAccessible:          true,
-	}
-}
-
-// NewCreds
-func NewCreds() Creds {
-	return Creds{
-		MasterUserName:     "postgres",
-		MasterUserPassword: "WioSna$9631uj",
-	}
 }
 
 // NewInstanceController
@@ -85,28 +23,10 @@ func NewInstanceController(rdsClient *rds.Client) *InstanceController {
 	}
 }
 
-// ParseConfig
-func ParseConfig(filePath string) (*Instance, error) {
-	cfg := InstanceConfig{}
-
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Printf("failed to read instance config: %v", err)
-		return nil, err
-	}
-
-	err = yaml.Unmarshal(data, &cfg)
-	if err != nil {
-		log.Printf("failed to unmarshal instance config: %v", err)
-		return nil, err
-	}
-
-	return &cfg.Instance, nil
-}
-
 // CreateInstance
-func (ic *InstanceController) CreateInstance(ctx context.Context, in Instance) {
+func (ic *InstanceController) CreateDBInstance(ctx context.Context, in *cfg.Instance) {
 	startTime := time.Now()
+
 	input := rds.CreateDBInstanceInput{
 		AllocatedStorage:            aws.Int32(in.Opts.AllocatedStorage),
 		AutoMinorVersionUpgrade:     aws.Bool(in.Opts.AutoMinorVersionUpgrade),
@@ -196,12 +116,8 @@ func (ic *InstanceController) DescribeDBInstances(ctx context.Context) {
 }
 
 // DeleteDBInstance
-func (ic *InstanceController) DeleteDBInstance(ctx context.Context) {
+func (ic *InstanceController) DeleteDBInstance(ctx context.Context, in *cfg.Instance) {
 	startTime := time.Now()
-	opts := NewOpts()
-	in := Instance{
-		Opts: opts,
-	}
 
 	input := rds.DeleteDBInstanceInput{
 		DBInstanceIdentifier: aws.String(in.Opts.DBInstanceIdentifier),
@@ -212,11 +128,11 @@ func (ic *InstanceController) DeleteDBInstance(ctx context.Context) {
 		log.Printf("failed to delete db instance: %v", err)
 		return
 	}
-	log.Printf("started deletion of instance: %s", opts.DBInstanceIdentifier)
+	log.Printf("started deletion of instance: %s", in.Opts.DBInstanceIdentifier)
 
 	waiter := rds.NewDBInstanceDeletedWaiter(ic.Client)
 	dscInput := rds.DescribeDBInstancesInput{
-		DBInstanceIdentifier: aws.String(opts.DBInstanceIdentifier),
+		DBInstanceIdentifier: aws.String(in.Opts.DBInstanceIdentifier),
 	}
 
 	maxWaitTime := 20 * time.Minute
@@ -226,5 +142,5 @@ func (ic *InstanceController) DeleteDBInstance(ctx context.Context) {
 		return
 	}
 	duration := time.Since(startTime)
-	log.Printf("instance: %s has been successfully deleted in: %v", opts.DBInstanceIdentifier, duration)
+	log.Printf("instance: %s has been successfully deleted in: %v", in.Opts.DBInstanceIdentifier, duration)
 }
