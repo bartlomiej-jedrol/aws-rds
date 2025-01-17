@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	cfgPath    string = "cfg/instance_config.yaml"
-	secretName string = "rds/psql"
+	cfgPath string = "cfg/instance_config.yaml"
 )
 
 type ConfigCreds struct {
@@ -75,13 +74,13 @@ func parseConfig(filePath string) (*ConfigInstannce, error) {
 	return &cfg.Instance, nil
 }
 
-func NewInstanceInputFromCfg(ctx context.Context, secretsClient *sm.Client) (*Instance, error) {
-	user, pass, err := secrets.GetSecrets(ctx, secretsClient, secretName)
+func NewInstanceFromCfg(ctx context.Context, secretsClient *sm.Client) (*Instance, error) {
+	cfg, err := parseConfig(cfgPath)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg, err := parseConfig(cfgPath)
+	user, pass, err := secrets.GetSecrets(ctx, secretsClient, cfg.Creds.SecretName)
 	if err != nil {
 		return nil, err
 	}

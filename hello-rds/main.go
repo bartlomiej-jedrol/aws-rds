@@ -15,7 +15,6 @@ var (
 	ctx           context.Context
 	rdsClient     *rds.Client
 	secretsClient *sm.Client
-	cfgPath       string = "cfg/instance_config.yaml"
 )
 
 func init() {
@@ -31,13 +30,16 @@ func init() {
 }
 
 func main() {
-	in, err := cfg.NewInstanceInputFromCfg(ctx, secretsClient)
+	instance, err := cfg.NewInstanceFromCfg(ctx, secretsClient)
 	if err != nil {
 		return
 	}
 
 	ic := rdspsql.NewInstanceController(rdsClient)
-	ic.CreateDBInstance(ctx, in)
+	err = ic.CreateDBInstance(ctx, instance)
+	if err != nil {
+		return
+	}
 
 	// ic.DescribeDBInstances(ctx)
 	// createDBInstance()

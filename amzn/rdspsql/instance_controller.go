@@ -24,48 +24,49 @@ func NewInstanceController(rdsClient *rds.Client) *InstanceController {
 }
 
 // CreateInstance
-func (ic *InstanceController) CreateDBInstance(ctx context.Context, in *cfg.Instance) {
+func (ic *InstanceController) CreateDBInstance(ctx context.Context, instance *cfg.Instance) error {
 	startTime := time.Now()
 
 	input := rds.CreateDBInstanceInput{
-		AllocatedStorage:            aws.Int32(in.Opts.AllocatedStorage),
-		AutoMinorVersionUpgrade:     aws.Bool(in.Opts.AutoMinorVersionUpgrade),
-		BackupRetentionPeriod:       aws.Int32(in.Opts.BackupRetentionPeriod),
-		DBInstanceClass:             aws.String(in.Opts.DBInstanceClass),
-		DBInstanceIdentifier:        aws.String(in.Opts.DBInstanceIdentifier),
-		DBName:                      aws.String(in.Opts.DBName),
-		DBParameterGroupName:        aws.String(in.Opts.DBParameterGroup),
-		DBSubnetGroupName:           aws.String(in.Opts.DBSubnetGroupName),
-		DeletionProtection:          aws.Bool(in.Opts.DeletionProtection),
-		EnableCloudwatchLogsExports: in.Opts.EnableCloudwatchLogsExports,
-		Engine:                      aws.String(in.Opts.Engine),
-		EngineVersion:               aws.String(in.Opts.EngineVersion),
-		LicenseModel:                aws.String(in.Opts.LicenseModel),
-		MasterUsername:              aws.String(in.Creds.MasterUserName),
-		MasterUserPassword:          aws.String(in.Creds.MasterUserPassword),
-		PubliclyAccessible:          aws.Bool(in.Opts.PubliclyAccessible),
+		AllocatedStorage:            aws.Int32(instance.Opts.AllocatedStorage),
+		AutoMinorVersionUpgrade:     aws.Bool(instance.Opts.AutoMinorVersionUpgrade),
+		BackupRetentionPeriod:       aws.Int32(instance.Opts.BackupRetentionPeriod),
+		DBInstanceClass:             aws.String(instance.Opts.DBInstanceClass),
+		DBInstanceIdentifier:        aws.String(instance.Opts.DBInstanceIdentifier),
+		DBName:                      aws.String(instance.Opts.DBName),
+		DBParameterGroupName:        aws.String(instance.Opts.DBParameterGroup),
+		DBSubnetGroupName:           aws.String(instance.Opts.DBSubnetGroupName),
+		DeletionProtection:          aws.Bool(instance.Opts.DeletionProtection),
+		EnableCloudwatchLogsExports: instance.Opts.EnableCloudwatchLogsExports,
+		Engine:                      aws.String(instance.Opts.Engine),
+		EngineVersion:               aws.String(instance.Opts.EngineVersion),
+		LicenseModel:                aws.String(instance.Opts.LicenseModel),
+		MasterUsername:              aws.String(instance.Creds.MasterUserName),
+		MasterUserPassword:          aws.String(instance.Creds.MasterUserPassword),
+		PubliclyAccessible:          aws.Bool(instance.Opts.PubliclyAccessible),
 	}
 
 	_, err := ic.Client.CreateDBInstance(ctx, &input)
 	if err != nil {
 		log.Printf("failed to create db instance: %+v", err)
-		return
+		return fmt.Errorf("failed to create db instance: %+v", err)
 	}
-	log.Printf("started creation of instance: %s", in.Opts.DBInstanceIdentifier)
+	log.Printf("started creation of instance: %s", instance.Opts.DBInstanceIdentifier)
 
 	waiter := rds.NewDBInstanceAvailableWaiter(ic.Client)
 	dscInput := rds.DescribeDBInstancesInput{
-		DBInstanceIdentifier: aws.String(in.Opts.DBInstanceIdentifier),
+		DBInstanceIdentifier: aws.String(instance.Opts.DBInstanceIdentifier),
 	}
 	maxWaitTime := 20 * time.Minute
-	output, err := waiter.WaitForOutput(ctx, &dscInput, maxWaitTime)
+	out, err := waiter.WaitForOutput(ctx, &dscInput, maxWaitTime)
 	if err != nil {
 		log.Printf("error waiting for instance creation: %v", err)
-		return
+		return fmt.Errorf("error waiting for instance creation: %v", err)
 	}
 	duration := time.Since(startTime)
-	log.Printf("instance: %s successfully created in: %v", in.Opts.DBInstanceIdentifier, duration)
-	log.Printf("created instance arn: %s", *output.DBInstances[0].DBInstanceArn)
+	log.Printf("instance: %s successfully created in: %v", instance.Opts.DBInstanceIdentifier, duration)
+	log.Printf("created instance arn: %s", *out.DBInstances[0].DBInstanceArn)
+	return nil
 }
 
 // DescribeDBInstances
